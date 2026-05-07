@@ -31,6 +31,14 @@ const LOOP_TYPES = [
 ];
 const getLT = val => LOOP_TYPES.find(t => t.value === val) || LOOP_TYPES[0];
 
+const THEMES = [
+  { label: "Midnight", bg: "#070d1a", card: "#0a1425", nav: "#0a1120", header: "linear-gradient(160deg,#0b1528 0%,#0d1f3c 100%)" },
+  { label: "Forest", bg: "#071a0d", card: "#0a2514", nav: "#0a1a0d", header: "linear-gradient(160deg,#0b2815 0%,#0d3c1f 100%)" },
+  { label: "Sunset", bg: "#1a0d07", card: "#251409", nav: "#1a0e07", header: "linear-gradient(160deg,#28150b 0%,#3c200d 100%)" },
+  { label: "Royal", bg: "#0d071a", card: "#140a25", nav: "#0e0a1a", header: "linear-gradient(160deg,#150b28 0%,#200d3c 100%)" },
+  { label: "Slate", bg: "#0d1117", card: "#161b22", nav: "#0d1117", header: "linear-gradient(160deg,#161b22 0%,#21262d 100%)" },
+];
+
 const fmt = n => `$${Math.abs(Number(n)).toFixed(2)}`;
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -56,6 +64,111 @@ function buildRoster(days) {
     });
   });
   return Object.values(map).sort((a, b) => b.loops - a.loops);
+}
+
+function WeatherWidget() {
+  const [weather, setWeather] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setError("Geolocation not supported");
+      setLoading(false);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(async pos => {
+      try {
+        const { latitude, longitude } = pos.coords;
+        const res = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode,windspeed_10m,relativehumidity_2m&temperature_unit=fahrenheit&windspeed_unit=mph`
+        );
+        const data = await res.json();
+        const c = data.current;
+        const code = c.weathercode;
+        let desc = "Clear";
+        let icon = "☀️";
+        if (code === 0) { desc = "Clear"; icon = "☀️"; }
+        else if (code <= 2) { desc = "Partly Cloudy"; icon = "⛅"; }
+        else if (code === 3) { desc = "Overcast"; icon = "☁️"; }
+        else if (code <= 49) { desc = "Foggy"; icon = "🌫️"; }
+        else if (code <= 59) { desc = "Drizzle"; icon = "🌦️"; }
+        else if (code <= 69) { desc = "Rain"; icon = "🌧️"; }
+        else if (code <= 79) { desc = "Snow"; icon = "❄️"; }
+        else if (code <= 82) { desc = "Rain Showers"; icon = "🌧️"; }
+        else if (code <= 99) { desc = "Thunderstorm"; icon = "⛈️"; }
+        setWeather({
+          temp: Math.round(c.temperature_2m),
+          desc,
+          icon,
+          wind: Math.round(c.windspeed_10m),
+          humidity: c.relativehumidity_2m,
+        });
+      } catch {
+        setError("Could not load weather");
+      }
+      setLoading(false);
+    }, () => {
+      setError("Location access denied");
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) return (
+    <div style={{ background: "#060b16", border: "1px solid #1a2744", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 12, color: "#475569" }}>
+      Fetching weather...
+    </div>
+  );
+  if (error) return (
+    <div style={{ background: "#060b16", border: "1px solid #1a2744", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 12, color: "#475569" }}>
+      {error}
+    </div>
+  );
+  if (!weather) return null;
+
+  const caddieNote = weather.temp >= 90 ? "Hot — stay hydrated" :
+    weather.temp <= 45 ? "Cold — dress in layers" :
+    weather.desc.includes("Rain") || weather.desc.includes("Storm") ? "Rain gear recommended" :
+    weather.desc.includes("Drizzle") ? "Light rain possible" :
+    "Good conditions";
+
+  return (
+    <div style={{ background: "#060b16", border: "1px solid #1a2744", borderRadius: 8, padding: "14px 16px", marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 36 }}>{weather.icon}</span>
+          <div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: "#facc15" }}>{weather.temp}F</div>
+            <div style={{ fontSize: 11, color: "#64748b" }}>{weather.desc}</div>
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 11, color: "#64748b" }}>Wind: {weather.wind} mph</div>
+          <div style={{ fontSize: 11, color: "#64748b" }}>Humidity: {weather.humidity}%</div>
+          <div style={{ fontSize: 10, color: "#22c55e", marginTop: 4, fontWeight: 700 }}>{caddieNote}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ThemePicker({ theme, setTheme }) {
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      {THEMES.map((t, i) => (
+        <button key={t.label} onClick={() => setTheme(i)} style={{
+          width: 28, height: 28, borderRadius: "50%",
+          background: t.bg,
+          border: theme === i ? "3px solid #facc15" : "2px solid #1a2744",
+          cursor: "pointer", flexShrink: 0,
+          boxShadow: theme === i ? "0 0 8px #facc15" : "none",
+        }} title={t.label} />
+      ))}
+      <span style={{ fontSize: 10, color: "#475569", letterSpacing: "0.08em" }}>
+        {THEMES[theme].label}
+      </span>
+    </div>
+  );
 }
 
 function Pill({ children, color = "#15803d" }) {
@@ -381,6 +494,7 @@ function LogDay({ days, setDays, roster, userId }) {
   return (
     <div style={S.card}>
       <h2 style={S.cardTitle}>Log a Day</h2>
+      <WeatherWidget />
       <SectionTitle>Date</SectionTitle>
       <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...S.input, marginBottom: 20 }} />
       <SectionTitle>Number of Loops</SectionTitle>
@@ -644,9 +758,7 @@ function History({ days, expenses, setDays, setExpenses }) {
                     return (
                       <div key={lp.id} style={{ marginTop: 8, paddingLeft: 8, borderLeft: `2px solid ${lt.color}` }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                          <span style={{ fontSize: 10, fontWeight: 800, color: "#475569", letterSpacing: "0.1em" }}>
-                            LOOP {li + 1}
-                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 800, color: "#475569", letterSpacing: "0.1em" }}>LOOP {li + 1}</span>
                           <Pill color={lt.pill}>{lt.label}</Pill>
                           {lp.bags.length > 1 && (
                             <span style={{ fontSize: 9, fontWeight: 800, color: "#f59e0b", background: "#1c1000", border: "1px solid #44300a", borderRadius: 20, padding: "1px 6px" }}>DOUBLE</span>
@@ -786,7 +898,6 @@ function BigStat({ label, value, color }) {
     </div>
   );
 }
-
 function SmStat({ label, value }) {
   return (
     <div style={{ background: "#060b16", border: "1px solid #1a2744", borderRadius: 8, padding: "10px 8px", textAlign: "center" }}>
@@ -795,7 +906,6 @@ function SmStat({ label, value }) {
     </div>
   );
 }
-
 function SplitBox({ label, color, loops, bags, total, avg }) {
   return (
     <div style={{ background: "#060b16", border: "1px solid #1a2744", borderTop: `3px solid ${color}`, borderRadius: 8, padding: "12px 12px" }}>
@@ -824,6 +934,7 @@ export default function CaddieLedger() {
   const [tab, setTab] = useState("log");
   const [days, setDays] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [theme, setTheme] = useState(0);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -848,6 +959,7 @@ export default function CaddieLedger() {
   const spent = expenses.reduce((s, e) => s + e.amount, 0);
   const net = earned - spent;
   const hasData = days.length > 0 || expenses.length > 0;
+  const t = THEMES[theme];
 
   if (loading) return (
     <div style={{ minHeight: "100vh", background: "#070d1a", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -858,8 +970,8 @@ export default function CaddieLedger() {
   if (!session) return <Auth />;
 
   return (
-    <div style={S.root}>
-      <header style={S.header}>
+    <div style={{ ...S.root, background: t.bg }}>
+      <header style={{ ...S.header, background: t.header }}>
         <div style={S.headerInner}>
           <div>
             <div style={S.logo}>Caddie Ledger</div>
@@ -882,15 +994,20 @@ export default function CaddieLedger() {
           </div>
         </div>
       </header>
-      <nav style={S.nav}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
+      <div style={{ background: t.nav, borderBottom: "1px solid #1a2744", padding: "10px 18px" }}>
+        <div style={{ maxWidth: 640, margin: "0 auto" }}>
+          <ThemePicker theme={theme} setTheme={setTheme} />
+        </div>
+      </div>
+      <nav style={{ ...S.nav, background: t.nav }}>
+        {TABS.map(t2 => (
+          <button key={t2.id} onClick={() => setTab(t2.id)} style={{
             ...S.navBtn,
-            borderBottom: tab === t.id ? "2px solid #facc15" : "2px solid transparent",
-            color: tab === t.id ? "#facc15" : "#475569",
+            borderBottom: tab === t2.id ? "2px solid #facc15" : "2px solid transparent",
+            color: tab === t2.id ? "#facc15" : "#475569",
           }}>
-            <span style={{ fontSize: 18 }}>{t.icon}</span>
-            <span style={{ fontSize: 8, marginTop: 3, letterSpacing: "0.07em", textTransform: "uppercase", display: "block" }}>{t.label}</span>
+            <span style={{ fontSize: 18 }}>{t2.icon}</span>
+            <span style={{ fontSize: 8, marginTop: 3, letterSpacing: "0.07em", textTransform: "uppercase", display: "block" }}>{t2.label}</span>
           </button>
         ))}
       </nav>
