@@ -224,4 +224,4 @@ function LoopBlock({ loop, loopIndex, loopCount, onChange, onChangeType, onAddBa
   return (
     <div style={{ ...S.golferBlock, borderColor: lt.color, marginBottom: loopIndex < loopCount - 1 ? 16 : 20 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <div style={{ display: "flex", alignItems: "center",​​​​​​​​​​​​​​​​ gap:  8 }}>
+<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
